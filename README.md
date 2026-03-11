@@ -42,3 +42,8 @@ chmod +x RedBlue_Frank_ADenum.sh
 
 Run the script:
 ./RedBlue_Frank_ADenum.sh
+
+<img width="1401" height="739" alt="image" src="https://github.com/user-attachments/assets/c3850b30-1d56-4072-b46f-0bcd0645d535" />
+
+<img width="1392" height="727" alt="image" src="https://github.com/user-attachments/assets/7b01d1fd-fd4e-4d78-9ee6-b4dfa2d8200c" />
+
